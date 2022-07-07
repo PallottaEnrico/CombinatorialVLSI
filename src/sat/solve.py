@@ -87,10 +87,10 @@ class SATsolver:
         ud = [[Bool(f"ud_{i + 1}_{j + 1}") for j in range(self.circuits_num)] for i in
               range(self.circuits_num)]
 
-        # print("Px \n", px)
-        # print("Py \n", py)
-        # print("Lr \n", lr)
-        # print("Ud \n", ud)
+        print("Px \n", px)
+        print("Py \n", py)
+        print("Lr \n", lr)
+        print("Ud \n", ud)
 
         if not self.rotation:
             # Place a circuit one time
@@ -104,6 +104,7 @@ class SATsolver:
             # Order constraint
             for i in range(self.circuits_num):
                 self.sol.add(px[i][-1])
+                self.sol.add(py[i][-1])
                 for j in range(self.max_width - self.w[i]):
                     self.sol.add(Or([Not(px[i][j]), px[i][j + 1]]))
                 for j in range(plate_height - self.h[i]):
@@ -137,30 +138,68 @@ class SATsolver:
                         Not(Or(py[i])), Or(py[i + rotation_index]))))
 
             for i in range(rotation_index, self.circuits_num):
-                for j in range(self.max_width - self.h[i]):
-                    self.sol.add(Or([Not(py[i][j]), py[i][j + 1]]))
-                # self.sol.add(Or([Not(py[i][-3]), py[i][-2], Not(py[i][-1])]))
-                for j in range(plate_height - self.w[i]):
+                for j in range(self.max_width - self.w[i]):
                     self.sol.add(Or([Not(px[i][j]), px[i][j + 1]]))
+                # self.sol.add(Or([Not(py[i][-3]), py[i][-2], Not(py[i][-1])]))
+                for j in range(plate_height - self.h[i]):
+                    self.sol.add(Or([Not(py[i][j]), py[i][j + 1]]))
                 # self.sol.add(Or([Not(px[i][-3]), px[i][-2], Not(px[i][-1])]))
 
             # no overlap with rotations
             for i in range(0, self.circuits_num):
                 for j in range(0, self.circuits_num):
                     if i < j and j != i + rotation_index:
-                        if i < rotation_index and j < rotation_index:
-                            self.add_no_overlap(px, py, lr, ud, self.w, self.h, i, j, self.max_width, plate_height)
-                        elif i < rotation_index and j >= rotation_index:
-                            self.add_no_overlap_norot_rot(px, py, lr, ud, self.w, self.h, i, j, self.max_width,
-                                                          plate_height)
-                        elif i >= rotation_index and j >= rotation_index:
-                            self.add_no_overlap(py, px, lr, ud, self.h, self.w, i, j, self.max_width, plate_height)
-
+                        self.add_no_overlap(px, py, lr, ud, self.w, self.h, i, j, self.max_width, plate_height)
+                    # if i < j and j != i + rotation_index:
+                    #     if i < rotation_index and j < rotation_index:
+                    #         self.add_no_overlap(px, py, lr, ud, self.w, self.h, i, j, self.max_width, plate_height)
+                    #     elif i < rotation_index and j >= rotation_index:
+                    #         self.add_no_overlap(px, py, lr, ud, self.w, self.h, i, j, self.max_width, plate_height)
+                    #         # self.add_no_overlap_norot_rot(px, py, lr, ud, self.w, self.h, i, j, self.max_width,
+                    #         #                               plate_height)
+                    #     elif i >= rotation_index and j >= rotation_index:
+                    #         self.add_no_overlap(px, py, lr, ud, self.w, self.h, i, j, self.max_width, plate_height)
+                    #         # self.add_no_overlap(py, px, lr, ud, self.h, self.w, i, j, self.max_width, plate_height)
 
         return px, py
 
     def add_no_overlap(self, px, py, lr, ud, w, h, i, j, max_w, max_h):
         if len(px[j]) - 1 >= w[i] - 1:
+            self.sol.add(Or(Not(lr[i][j]), Not(px[j][w[i] - 1])))
+        else:
+            # print("Else 1:", Or(Not(lr[i][j]), Not(px[j][-1])))
+            self.sol.add(Or(Not(lr[i][j]), Not(px[j][-1])))
+        if len(px[i]) - 1 >= w[j] - 1:
+            self.sol.add(Or(Not(lr[j][i]), Not(px[i][w[j] - 1])))
+        else:
+            # print("Else 2:", Or(Not(lr[j][i]), Not(px[i][-1])))
+            self.sol.add(Or(Not(lr[j][i]), Not(px[i][-1])))
+        if len(py[j]) - 1 >= h[i] - 1:
+            self.sol.add(Or(Not(ud[i][j]), Not(py[j][h[i] - 1])))
+        else:
+            # print("Else 3:", Or(Not(ud[i][j]), Not(py[j][-1])))
+            self.sol.add(Or(Not(ud[i][j]), Not(py[j][-1])))
+        if len(py[i]) - 1 >= h[j] - 1:
+            self.sol.add(Or(Not(ud[j][i]), Not(py[i][h[j] - 1])))
+        else:
+            # print("Else 4:", Or(Not(ud[j][i]), Not(py[i][-1])))
+            self.sol.add(Or(Not(ud[j][i]), Not(py[i][-1])))
+
+        self.sol.add(Or(lr[i][j], lr[j][i], ud[i][j], ud[j][i]))
+
+        for e in range(max_w - w[i]):
+            if len(px[j]) - 1 >= e + w[i]:
+                self.sol.add(Or(Not(lr[i][j]), px[i][e], Not(px[j][e + w[i]])))
+            if len(px[i]) - 1 >= e + w[j]:
+                self.sol.add(Or(Not(lr[j][i]), px[j][e], Not(px[i][e + w[j]])))
+        for f in range(max_h - h[j]):
+            if len(py[j]) - 1 >= f + h[i]:
+                self.sol.add(Or(Not(ud[i][j]), py[i][f], Not(py[j][f + h[i]])))
+            if len(py[i]) - 1 >= f + h[j]:
+                self.sol.add(Or(Not(ud[j][i]), py[j][f], Not(py[i][f + h[j]])))
+
+    def add_no_overlap_nuovo(self, px, py, lr, ud, w, h, i, j, max_w, max_h):
+        if len(px[j]) >= w[i]:
             self.sol.add(Or(Not(lr[i][j]), Not(px[j][w[i] - 1])))
         else:
             self.sol.add(Or(Not(lr[i][j]), Not(px[j][-1])))
@@ -265,6 +304,7 @@ class SATsolver:
         for i in range(self.circuits_num):
             for e in range(len(px[i])):
                 print(px[i][e], m.evaluate(px[i][e]))
+
         for i in range(self.circuits_num):
             for e in range(len(px[i])):
                 # print(px[i][e], m.evaluate(px[i][e]))
